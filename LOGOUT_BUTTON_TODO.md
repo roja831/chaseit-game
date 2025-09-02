@@ -1,0 +1,4 @@
+- [x] Add logout button to game.html
+- [x] Add logout button to admin.html
+- [x] Add logout functionality to game.js
+- [x] Add logout functionality to admin.js

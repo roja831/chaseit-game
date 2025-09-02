@@ -1,0 +1,266 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>LOGICSHIFT - Admin</title>
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<!-- Google Fonts for techy feel -->
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700&family=Rajdhani:wght@700&display=swap" rel="stylesheet">
+<style>
+  /* ===== GLOBAL ===== */
+  * { margin:0; padding:0; box-sizing:border-box; font-family:'Rajdhani', sans-serif; }
+  body {
+    min-height:100vh;
+    display:flex;
+    justify-content:center;
+    align-items:flex-start;
+    background:#0b0b15;
+    color:#fff;
+    padding:40px 0;
+  }
+
+  /* ===== ADMIN CARD ===== */
+  .center-card.admin {
+    width: 800px;
+    background: rgba(20,20,35,0.9);
+    border-radius:25px;
+    padding:40px;
+    box-shadow: 0 15px 50px rgba(0,0,0,0.7);
+    backdrop-filter: blur(15px);
+    border: 1px solid rgba(0,212,255,0.1);
+    display:flex;
+    flex-direction:column;
+    gap:30px;
+  }
+
+  /* ===== HEADINGS ===== */
+  h1, h3 {
+    font-family:'Orbitron', sans-serif;
+    color:#00d4ff;
+  }
+  h1 { font-size:2.2rem; text-align:center; margin-bottom:20px; }
+  h3 { font-size:1.2rem; margin-bottom:10px; }
+
+  /* ===== PANELS ===== */
+  .panel {
+    background: rgba(30,30,50,0.7);
+    border-radius:20px;
+    padding:30px;
+    display:flex;
+    flex-direction:column;
+    gap:15px;
+    box-shadow: inset 0 0 30px rgba(0,212,255,0.05);
+  }
+
+  /* ===== BUTTONS ===== */
+  button {
+    padding:12px 20px;
+    border:none;
+    border-radius:12px;
+    background: linear-gradient(135deg,#00d4ff,#0088ff);
+    color:#000;
+    font-weight:700;
+    font-family:'Orbitron', sans-serif;
+    cursor:pointer;
+    transition: all 0.3s ease;
+    text-transform:uppercase;
+  }
+  button:hover {
+    transform: scale(1.05);
+    box-shadow: 0 0 15px #00d4ff, 0 0 30px #0088ff;
+  }
+
+  /* ===== UPLOAD FORM ===== */
+  input[type="file"] {
+    padding:8px;
+    border-radius:10px;
+    border:none;
+    background: rgba(40,40,60,0.7);
+    color:#fff;
+    cursor:pointer;
+  }
+
+  /* ===== TEXTAREA ===== */
+  textarea {
+    width:100%;
+    border-radius:12px;
+    border:none;
+    padding:12px;
+    font-family:'Rajdhani', sans-serif;
+    background: rgba(40,40,60,0.7);
+    color:#fff;
+    font-size:0.95rem;
+    resize:vertical;
+    box-shadow: inset 0 0 10px rgba(0,212,255,0.1);
+    transition: all 0.3s ease;
+  }
+  textarea:focus { outline:none; box-shadow: inset 0 0 15px rgba(0,212,255,0.4); }
+
+  /* ===== SMALL TEXT ===== */
+  .small {
+    font-size:0.85rem;
+    color:#a0a0a0;
+    margin-top:5px;
+  }
+
+  /* ===== FORM ACTIONS ===== */
+  .form-actions { display:flex; justify-content:flex-end; }
+</style>
+</head>
+<body>
+<div class="center-card admin">
+  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+    <h1>Admin Panel — LOGICSHIFT</h1>
+    <button id="logoutBtn" style="background: transparent; border: none; color: #00d4ff; font-family: 'Orbitron', sans-serif; font-weight: 700; cursor: pointer; text-transform: uppercase; padding: 0 10px;">Logout</button>
+  </div>
+
+  <div class="panel">
+    <button id="startBtn">Start Game (3..2..1)</button>
+    <button id="stopBtn">Stop Game</button>
+  </div>
+
+  <div class="panel">
+    <h3>Teams & Progress</h3>
+    <div id="adminTeamList"></div>
+  </div>
+
+  <div class="panel">
+    <h3>🏆 Level 5 Leaderboard</h3>
+    <div id="leaderboardContainer">
+      <table border="1" cellpadding="6" cellspacing="5" style="width:100%; border-collapse: collapse; text-align:center;color: #fff;">
+        <thead>
+          <tr>
+            <th>Rank</th>
+            <th>Team Name</th>
+            <th>Completion Time</th>
+            <th>Total Time</th>
+          </tr>
+        </thead>
+        <tbody id="leaderboardBody">
+          <tr>
+            <td colspan="4" style="color:#a0a0a0;">No teams have completed Level 5 yet</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h3>Upload Image (for questions)</h3>
+    <form id="uploadForm">
+      <input type="file" id="fileInput" />
+      <button type="submit">Upload</button>
+    </form>
+    <div id="uploadResult"></div>
+  </div>
+
+  <div class="panel">
+    <h3>Edit Questions JSON</h3>
+    <textarea id="questionsJSON" rows="12"></textarea>
+    <div class="form-actions">
+      <button id="saveQuestions">Save Questions</button>
+    </div>
+    <div class="small">Tip: When adding images, use the URL returned by upload (e.g., /uploads/filename.png)</div>
+  </div>
+</div>
+
+<!-- Popup modal -->
+<div id="popupModal" class="popup-modal hidden">
+  <div class="popup-content">
+    <p id="popupMessage"></p>
+    <div class="popup-buttons">
+      <button id="popupOkBtn">OK</button>
+      <button id="popupCancelBtn" class="hidden">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<style>
+  .popup-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(11, 11, 21, 0.8);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+  }
+  .popup-modal.hidden {
+    display: none;
+  }
+  .popup-content {
+    background: #141423;
+    padding: 20px 30px;
+    border-radius: 15px;
+    box-shadow: 0 0 20px #00d4ff;
+    color: #00d4ff;
+    max-width: 400px;
+    text-align: center;
+    font-family: 'Rajdhani', sans-serif;
+  }
+  .popup-buttons {
+    margin-top: 20px;
+    display: flex;
+    justify-content: center;
+    gap: 20px;
+  }
+  .popup-buttons button {
+    padding: 10px 20px;
+    border-radius: 12px;
+    border: none;
+    font-weight: 700;
+    font-family: 'Orbitron', sans-serif;
+    cursor: pointer;
+    background: linear-gradient(135deg, #00d4ff, #0088ff);
+    color: #000;
+    text-transform: uppercase;
+    transition: all 0.3s ease;
+  }
+  .popup-buttons button:hover {
+    transform: scale(1.05);
+    box-shadow: 0 0 15px #00d4ff, 0 0 30px #0088ff;
+  }
+</style>
+
+  <script>
+  // Check authentication on page load
+  document.addEventListener('DOMContentLoaded', () => {
+    // Check for token in URL query parameter (from login redirect)
+    const urlParams = new URLSearchParams(window.location.search);
+    const tokenFromUrl = urlParams.get('token');
+    const usernameFromUrl = urlParams.get('username');
+
+    if (tokenFromUrl && tokenFromUrl.startsWith('admin-')) {
+      // Store token from URL and clean up URL
+      localStorage.setItem('adminAuth', tokenFromUrl);
+      if (usernameFromUrl) {
+        localStorage.setItem('adminUsername', usernameFromUrl);
+      }
+      // Remove token and username from URL for security
+      const url = new URL(window.location);
+      url.searchParams.delete('token');
+      url.searchParams.delete('username');
+      window.history.replaceState(null, null, url.toString());
+    }
+
+    const authToken = localStorage.getItem('adminAuth');
+    const storedUsername = localStorage.getItem('adminUsername');
+
+    if (!authToken || !authToken.startsWith('admin-')) {
+      // Redirect to login if not authenticated
+      window.location.href = '/admin-login.html';
+      return;
+    }
+
+    // If authenticated, proceed with normal admin functionality
+    console.log('Admin authenticated, loading admin panel...');
+  });
+  </script>
+
+<script src="/socket.io/socket.io.js"></script>
+<script src="js/admin.js"></script>
+</body>
+</html>

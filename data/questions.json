@@ -1,0 +1,39 @@
+{
+  "level1": [
+    {
+      "image": "/uploads/python.png",
+      "options": ["Python", "Java", "C++", "JavaScript", "Go"],
+      "answer": "Python"
+    },
+    {
+      "image": "/uploads/java.png",
+      "options": ["Python", "Java", "C++", "JavaScript", "Go"],
+      "answer": "Java"
+    }
+  ],
+  "level2": [
+    {
+      "snippet": "console.log('Hello World');",
+      "expectedOutput": "Hello World"
+    }
+  ],
+  "level3": [
+    {
+      "categories": ["Frontend", "Backend"],
+      "items": ["React", "Node.js", "HTML", "Express"],
+      "answer": { "Frontend": ["React", "HTML"], "Backend": ["Node.js", "Express"] }
+    }
+  ],
+  "level4": [
+    {
+      "layers": ["Application","Presentation","Session","Transport","Network","Data Link","Physical"],
+      "answer": ["Physical","Data Link","Network","Transport","Session","Presentation","Application"]
+    }
+  ],
+  "level5": [
+    {
+      "puzzle": "/uploads/puzzle1.png",
+      "grid": 3
+    }
+  ]
+}
