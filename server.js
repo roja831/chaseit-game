@@ -1,11 +1,11 @@
 // server.js
-const express = require('express');
-const http = require('http');
-const { Server } = require('socket.io');
-const fs = require('fs');
-const path = require('path');
-const multer = require('multer');
-const cors = require('cors');
+const express = require("express");
+const http = require("http");
+const { Server } = require("socket.io");
+const fs = require("fs");
+const path = require("path");
+const multer = require("multer");
+const cors = require("cors");
 
 const app = express();
 const server = http.createServer(app);
