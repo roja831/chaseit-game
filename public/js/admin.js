@@ -8,8 +8,35 @@ const saveQuestionsBtn = document.getElementById('saveQuestions');
 const uploadForm = document.getElementById('uploadForm');
 const fileInput = document.getElementById('fileInput');
 const uploadResult = document.getElementById('uploadResult');
+const clearLeaderboardBtn = document.getElementById('clearLeaderboardBtn');
 
 socket.emit('registerAdmin');
+
+socket.on('updateLeaderboard', leaderboard => {
+  const tbody = document.getElementById("leaderboardBody");
+  tbody.innerHTML = ""; // clear old rows
+
+  // Render leaderboard rows
+  if (leaderboard.length === 0) {
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="4" style="color:#a0a0a0;">No teams have completed Level 5 yet</td>
+      </tr>
+    `;
+    return;
+  }
+
+  leaderboard.forEach((entry, index) => {
+    const row = document.createElement("tr");
+    row.innerHTML = `
+      <td>#${index + 1}</td>
+      <td>${entry.teamName}</td>
+      <td>${entry.completionTime}</td>
+      <td>${(entry.totalTime / 1000).toFixed(1)}s</td>
+    `;
+    tbody.appendChild(row);
+  });
+});
 
 socket.on('updateTeams', teams => {
   // build teams table
@@ -54,8 +81,9 @@ socket.on('updateTeams', teams => {
     });
   });
 
-  // Update leaderboard
-  updateLeaderboard(teams);
+  // Update leaderboard after team deletion
+  updateLeaderboard();
+
 });
 
 startBtn.addEventListener('click', () => {
@@ -66,6 +94,15 @@ startBtn.addEventListener('click', () => {
 
 stopBtn.addEventListener('click', () => {
   socket.emit('stopGame');
+});
+
+clearLeaderboardBtn.addEventListener('click', () => {
+  showPopup('Are you sure you want to clear the entire leaderboard? This action cannot be undone.', true, () => {
+    socket.emit('clearLeaderboard');
+    // After clearing, request updated leaderboard and teams
+    socket.emit('requestLeaderboardUpdate');
+    socket.emit('requestTeamsUpdate');
+  });
 });
 
 // load questions JSON
@@ -150,49 +187,34 @@ function showPopup(message, showCancel = false, onConfirm = null) {
 }
 
 // ===== Update Leaderboard =====
-// ===== Update Leaderboard =====
-function updateLeaderboard(teams) {
-  const tbody = document.getElementById("leaderboardBody");
-  tbody.innerHTML = ""; // clear old rows
+function updateLeaderboard() {
+  fetch('/leaderboard')
+    .then(r => r.json())
+    .then(leaderboard => {
+      const tbody = document.getElementById("leaderboardBody");
+      tbody.innerHTML = ""; // clear old rows
 
-  // Filter teams that have completed level 5
-  const level5Completers = teams.filter(team =>
-    team.completed.some(c => c.level === 5 && c.finishedAt)
-  );
+      // Render leaderboard rows
+      if (leaderboard.length === 0) {
+        tbody.innerHTML = `
+          <tr>
+            <td colspan="4" style="color:#a0a0a0;">No teams have completed Level 5 yet</td>
+          </tr>
+        `;
+        return;
+      }
 
-  // Sort by completion time
-  level5Completers.sort((a, b) => {
-    const aCompletion = a.completed.find(c => c.level === 5);
-    const bCompletion = b.completed.find(c => c.level === 5);
-    return (aCompletion.finishedAt || Infinity) - (bCompletion.finishedAt || Infinity);
-  });
-
-  // Render leaderboard rows
-  if (level5Completers.length === 0) {
-    tbody.innerHTML = `
-      <tr>
-        <td colspan="4" style="color:#a0a0a0;">No teams have completed Level 5 yet</td>
-      </tr>
-    `;
-    return;
-  }
-
-  level5Completers.forEach((team, index) => {
-    const completion = team.completed.find(c => c.level === 5);
-
-    // Calculate total time = finishedAt - joinedAt
-    const totalTime = completion.finishedAt && team.joinedAt
-      ? ((completion.finishedAt - new Date(team.joinedAt).getTime()) / 1000).toFixed(1) + "s"
-      : "—";
-
-    const row = document.createElement("tr");
-    row.innerHTML = `
-      <td>#${index + 1}</td>
-      <td>${team.name}</td>
-      <td>${completion.finishedAt ? new Date(completion.finishedAt).toLocaleTimeString() : "—"}</td>
-      <td>${totalTime}</td>
-    `;
-    tbody.appendChild(row);
-  });
+      leaderboard.forEach((entry, index) => {
+        const row = document.createElement("tr");
+        row.innerHTML = `
+          <td>#${index + 1}</td>
+          <td>${entry.teamName}</td>
+          <td>${entry.completionTime}</td>
+          <td>${(entry.totalTime / 1000).toFixed(1)}s</td>
+        `;
+        tbody.appendChild(row);
+      });
+    })
+    .catch(err => console.error('Error loading leaderboard:', err));
 }
 

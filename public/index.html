@@ -141,9 +141,21 @@ joinBtn.addEventListener('click', () => {
     alert("Please enter both team name and game code!");
     return;
   }
-  socket.emit('joinTeam', { teamName, gameCode });
+  joinBtn.disabled = true;
+  joinBtn.textContent = "Joining...";
+  socket.emit('joinTeam', { name: teamName, level: 1, gameCode });
+});
+
+socket.on('teamInfo', (data) => {
+  const teamName = teamNameInput.value.trim();
   localStorage.setItem('logicshift_teamName', teamName);
-  window.location.href = "waiting.html";
+  window.location.href = "waiting.html?team=" + encodeURIComponent(teamName) + "&level=1";
+});
+
+socket.on('joinError', (data) => {
+  alert(data.message);
+  joinBtn.disabled = false;
+  joinBtn.textContent = "Join Game";
 });
 [teamNameInput, gameCodeInput].forEach(input => {
   input.addEventListener('keypress', e => {

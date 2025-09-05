@@ -19,15 +19,16 @@ let levelStart = null;
 let timerInterval = null;
 let gameStarted = false;
 
-// Function to update level in URL
+// Function to update level and team in URL
 function updateUrlLevel(lvl) {
   const url = new URL(window.location);
   url.searchParams.set('level', lvl);
+  url.searchParams.set('team', teamName);
   window.history.replaceState(null, null, url.toString());
 }
 
 // ---- Socket events ----
-socket.emit('joinTeam', {name: teamName, level: currentLevel});
+socket.emit('joinTeam', {name: teamName, level: currentLevel, gameCode: 'chase123'});
 
 // Receive team info from server
 socket.on('teamInfo', data => {
@@ -44,6 +45,11 @@ socket.on('gameStarted', () => {
 
 socket.on('countdown', n => {
   timerLabel.innerText = `Game starts in: ${n}`;
+});
+
+socket.on('joinError', (data) => {
+  alert(data.message);
+  window.location.href = "/";
 });
 
 // fetch questions then load first unlocked level
@@ -280,11 +286,13 @@ function renderLevel4(items) {
   const q = items[0];
   const card = document.createElement('div');
   card.className = 'level-card';
+  card.style.maxWidth = '50%';
+  card.style.padding = '15px';
   card.innerHTML = `
-    <h2>Level 4 — Reorder OSI layers</h2>
-    <p>Arrange from bottom (Physical) → top (Application)</p>
-    <div id="layerList" style="display:flex; flex-direction:column; gap:6px;"></div>
-    <div style="margin-top:12px;"><button id="submit4">Submit</button></div>
+    <h2 style="font-size: 1.2rem; margin-bottom: 8px;">Level 4 — Reorder OSI layers</h2>
+    <p style="font-size: 0.9rem; margin-bottom: 12px;">Arrange from bottom (Physical) → top (Application)</p>
+    <div id="layerList" style="display:flex; flex-direction:column; gap:4px; max-width: 100%;"></div>
+    <div style="margin-top:12px;"><button id="submit4" style="padding: 8px 16px; font-size: 0.9rem;">Submit</button></div>
   `;
   gameRoot.appendChild(card);
 
@@ -296,29 +304,33 @@ function renderLevel4(items) {
     el.className = 'drag-item';
     el.draggable = true;
 
-    // Compact and attractive style
+    // Mobile-friendly compact style
     el.style.display = 'flex';
     el.style.justifyContent = 'space-between';
     el.style.alignItems = 'center';
-    el.style.padding = '8px 14px';
-    el.style.borderRadius = '10px';
+    el.style.padding = '6px 10px';
+    el.style.borderRadius = '8px';
     el.style.background = 'linear-gradient(135deg,#00d4ff,#0088ff)';
     el.style.color = '#fff';
     el.style.fontWeight = '600';
-    el.style.fontSize = '14px';
+    el.style.fontSize = '0.85rem';
     el.style.cursor = 'grab';
     el.style.transition = 'all 0.2s ease';
+    el.style.userSelect = 'none';
+    el.style.touchAction = 'none';
     el.id = 'layer-' + idx;
 
-    el.innerHTML = `<span>${item}</span><span style="opacity:0.6;font-size:1rem">⇅</span>`;
+    el.innerHTML = `<span>${item}</span><span style="opacity:0.6;font-size:0.8rem">⇅</span>`;
 
-    // Drag events
+    // Enhanced drag events with touch support
     el.addEventListener('dragstart', ev => {
       ev.dataTransfer.setData('text/plain', item);
       el.style.opacity = '0.5';
+      el.style.transform = 'scale(0.95)';
     });
     el.addEventListener('dragend', ev => {
       el.style.opacity = '1';
+      el.style.transform = 'scale(1)';
     });
     el.addEventListener('dragover', ev => ev.preventDefault());
 
@@ -336,6 +348,19 @@ function renderLevel4(items) {
       }
     });
 
+    // Touch support for mobile
+    let touchStartY = 0;
+    el.addEventListener('touchstart', ev => {
+      touchStartY = ev.touches[0].clientY;
+      el.style.opacity = '0.5';
+      el.style.transform = 'scale(0.95)';
+    });
+
+    el.addEventListener('touchend', ev => {
+      el.style.opacity = '1';
+      el.style.transform = 'scale(1)';
+    });
+
     list.appendChild(el);
   });
 
@@ -349,142 +374,277 @@ function renderLevel4(items) {
   };
 }
 
-
-// ===== Level 5: Tower of Hanoi =====
+// ===== Level 5: Technical Tower of Hanoi (drag + touch + tap) =====
 function renderLevel5(items) {
-  const q = items[0];
-  const numDisks = q.disks || 4; // configurable difficulty
+  const stages = [
+    { name: "Testing", color: "#e74c3c" },          // smallest
+    { name: "Development", color: "#f39c12" },
+    { name: "Design", color: "#2980b9" },
+    { name: "Requirements Analysis", color: "#27ae60" } // largest
+  ];
+  const numDisks = stages.length;
 
   const card = document.createElement("div");
   card.className = "level-card";
   card.innerHTML = `
-    <h2>Level 5 — Tower of Hanoi</h2>
-    <div id="hanoiGame" style="display:flex; justify-content:space-around; margin:20px 0; gap:20px;"></div>
+    <h2>Level 5 — Software Dev Tower of Hanoi</h2>
+    <p style="text-align:center; font-size:0.9rem; color:#555; margin:6px 0;">
+      Tip: On phone, tap a rod to pick the top stage, then tap another rod to drop. Drag the top stage on desktop.
+    </p>
+    <div id="hanoiGame" style="display:flex; justify-content:space-around; margin:20px 0; gap:10px; touch-action:none;"></div>
     <div style="margin-top:12px; display:flex; justify-content:center; gap:12px;">
-      <button id="undoBtn">Undo</button>
-      <button id="submit5">Check Puzzle</button>
+      <button id="undoBtn" style="padding: 8px 16px; font-size: 0.9rem;">Undo</button>
+      <button id="submit5" style="padding: 8px 16px; font-size: 0.9rem;">Check Puzzle</button>
     </div>
   `;
   gameRoot.appendChild(card);
 
   const hanoiGame = card.querySelector("#hanoiGame");
 
-  // rods state (arrays of disk sizes, smaller number = smaller disk)
+  // --- state ---
   let rods = [[], [], []];
-  for (let i = numDisks; i >= 1; i--) {
-    rods[0].push(i);
-  }
+  for (let i = numDisks; i >= 1; i--) rods[0].push(i); // numbers represent stages (1..numDisks)
+  let moveHistory = [];
 
-  let moveHistory = []; // stack for undo
+  // drag/touch state
+  let draggedDisk = null; // numeric size
+  let fromRod = null;
+  let isDragging = false;
+  let draggingEl = null;   // DOM element being moved (for touch visuals)
+  let touchStartX = 0, touchStartY = 0;
 
+  // tap-to-move state (mobile)
+  let selectedRod = null;
+
+  // --- render ---
   function render() {
     hanoiGame.innerHTML = "";
     rods.forEach((rod, rodIndex) => {
       const rodDiv = document.createElement("div");
       rodDiv.className = "rod";
       rodDiv.dataset.rod = rodIndex;
-      rodDiv.style.flex = "1";
-      rodDiv.style.minHeight = "200px";
-      rodDiv.style.border = "2px solid #555";
-      rodDiv.style.borderRadius = "8px";
-      rodDiv.style.display = "flex";
-      rodDiv.style.flexDirection = "column-reverse";
-      rodDiv.style.alignItems = "center";
-      rodDiv.style.justifyContent = "flex-start";
-      rodDiv.style.padding = "10px";
-      rodDiv.style.background = "#f9f9f9";
+      Object.assign(rodDiv.style, {
+        flex: "1",
+        minHeight: "220px",
+        border: "2px solid #555",
+        borderRadius: "8px",
+        display: "flex",
+        flexDirection: "column-reverse",
+        alignItems: "center",
+        justifyContent: "flex-start",
+        padding: "8px",
+        background: "#f9f9f9",
+        transition: "background 0.12s ease, border-color 0.12s ease",
+      });
 
-      rod.forEach((disk) => {
+      // make rod clickable for tap-to-move
+      rodDiv.addEventListener("click", () => handleTapMove(rodIndex));
+
+      // desktop drop targets
+      rodDiv.addEventListener("dragover", (e) => {
+        e.preventDefault();
+        highlightRod(rodDiv);
+      });
+      rodDiv.addEventListener("dragleave", () => unhighlightRod(rodDiv));
+      rodDiv.addEventListener("drop", (e) => {
+        e.preventDefault();
+        unhighlightRod(rodDiv);
+        // use global fromRod set in dragstart
+        if (fromRod !== null && draggedDisk !== null) {
+          moveDisk(fromRod, rodIndex);
+          resetDragState();
+        }
+      });
+
+      // render disks for this rod
+      rod.forEach((disk, diskIndex) => {
+        const stage = stages[disk - 1];
         const diskDiv = document.createElement("div");
         diskDiv.className = "disk";
-        diskDiv.draggable = true;
         diskDiv.dataset.size = disk;
-        diskDiv.style.height = "24px";
-        diskDiv.style.margin = "3px 0";
-        diskDiv.style.borderRadius = "12px";
-        diskDiv.style.background = `hsl(${disk * 40},70%,60%)`;
-        diskDiv.style.width = `${disk * (60 / numDisks) + 40}%`;
-        diskDiv.style.maxWidth = "120px";
+        diskDiv.style.height = "40px";
+        diskDiv.style.margin = "4px 0";
+        diskDiv.style.borderRadius = "14px";
+        diskDiv.style.background = stage.color;
+        diskDiv.style.width = `${disk * (70 / numDisks) + 30}%`;
+        diskDiv.style.maxWidth = "160px";
+        diskDiv.style.minWidth = "80px";
         diskDiv.style.textAlign = "center";
         diskDiv.style.color = "#fff";
-        diskDiv.style.fontWeight = "bold";
-        diskDiv.innerText = disk;
+        diskDiv.style.fontWeight = "700";
+        diskDiv.style.fontSize = "0.85rem";
+        diskDiv.style.cursor = "pointer";
+        diskDiv.style.userSelect = "none";
+        diskDiv.style.boxShadow = "0 2px 4px rgba(0,0,0,0.2)";
+        diskDiv.style.display = "flex";
+        diskDiv.style.alignItems = "center";
+        diskDiv.style.justifyContent = "center";
+        diskDiv.style.touchAction = "none";
+        diskDiv.textContent = stage.name;
+
+        const isTopDisk = diskIndex === rod.length - 1;
+        diskDiv.draggable = !!isTopDisk;
+        if (!isTopDisk) {
+          diskDiv.style.opacity = "0.75";
+          diskDiv.style.cursor = "not-allowed";
+        }
+
+        // avoid bubbling clicks from disk to rod (tap flow)
+        diskDiv.addEventListener("click", (e) => e.stopPropagation());
+
+        // --- Desktop drag ---
+        diskDiv.addEventListener("dragstart", (e) => {
+          if (!isTopOfParent(diskDiv)) { e.preventDefault(); return; }
+          draggedDisk = parseInt(diskDiv.dataset.size, 10);
+          fromRod = parseInt(diskDiv.parentElement.dataset.rod, 10);
+          isDragging = true;
+          try { e.dataTransfer.setData("text/plain", String(draggedDisk)); } catch (_) {}
+          diskDiv.style.transform = "scale(1.05)";
+          diskDiv.style.zIndex = "1000";
+        });
+        diskDiv.addEventListener("dragend", () => {
+          diskDiv.style.transform = "scale(1)";
+          diskDiv.style.zIndex = "auto";
+          resetDragState();
+          clearHighlights();
+        });
+
+        // --- Touch handlers (robust) ---
+        diskDiv.addEventListener("touchstart", (e) => {
+          if (!isTopOfParent(diskDiv)) return;
+          e.preventDefault();
+          draggedDisk = parseInt(diskDiv.dataset.size, 10);
+          fromRod = parseInt(diskDiv.parentElement.dataset.rod, 10);
+          isDragging = true;
+          draggingEl = diskDiv;
+          touchStartX = e.touches[0].clientX;
+          touchStartY = e.touches[0].clientY;
+          draggingEl.style.transition = "transform 0s";
+          draggingEl.style.zIndex = "1000";
+        }, { passive: false });
+
+        diskDiv.addEventListener("touchmove", (e) => {
+          if (!isDragging || !draggingEl) return;
+          e.preventDefault();
+          const t = e.touches[0];
+          const dx = t.clientX - touchStartX;
+          const dy = t.clientY - touchStartY;
+          draggingEl.style.transform = `translate(${dx}px, ${dy}px) scale(1.05)`;
+
+          // hit test under finger: hide element temporarily
+          draggingEl.style.visibility = "hidden";
+          const elUnder = document.elementFromPoint(t.clientX, t.clientY);
+          draggingEl.style.visibility = "visible";
+
+          clearHighlights();
+          const rodCandidate = elUnder && elUnder.closest && elUnder.closest(".rod");
+          if (rodCandidate) highlightRod(rodCandidate);
+        }, { passive: false });
+
+        diskDiv.addEventListener("touchend", (e) => {
+          if (!isDragging || !draggingEl) return;
+          e.preventDefault();
+          const t = e.changedTouches[0];
+
+          // detect drop target
+          draggingEl.style.visibility = "hidden";
+          const elUnder = document.elementFromPoint(t.clientX, t.clientY);
+          draggingEl.style.visibility = "visible";
+          const rodCandidate = elUnder && elUnder.closest && elUnder.closest(".rod");
+
+          // reset visual
+          draggingEl.style.transform = "";
+          draggingEl.style.zIndex = "auto";
+          clearHighlights();
+
+          if (rodCandidate) {
+            const to = parseInt(rodCandidate.dataset.rod, 10);
+            if (fromRod !== null && draggedDisk !== null) moveDisk(fromRod, to);
+          }
+          resetDragState();
+        }, { passive: false });
+
         rodDiv.appendChild(diskDiv);
       });
 
       hanoiGame.appendChild(rodDiv);
     });
+  } // end render
 
-    addDragDropHandlers();
+  // --- helpers ---
+  function isTopOfParent(diskEl) {
+    const parent = diskEl.parentElement;
+    if (!parent) return false;
+    const idx = parseInt(parent.dataset.rod, 10);
+    const top = rods[idx].slice(-1)[0];
+    return parseInt(diskEl.dataset.size, 10) === top;
   }
 
-  let draggedDisk = null;
-  let fromRod = null;
-
-  function addDragDropHandlers() {
-    const disks = hanoiGame.querySelectorAll(".disk");
-    const rodsDiv = hanoiGame.querySelectorAll(".rod");
-
-    disks.forEach((disk) => {
-      disk.addEventListener("dragstart", (e) => {
-        draggedDisk = parseInt(disk.dataset.size);
-        fromRod = parseInt(disk.parentElement.dataset.rod);
-        // allow only if it's the top disk of that rod
-        if (rods[fromRod][rods[fromRod].length - 1] !== draggedDisk) {
-          e.preventDefault();
-          draggedDisk = null;
-          fromRod = null;
-        }
-      });
-    });
-
-    rodsDiv.forEach((rodDiv) => {
-      rodDiv.addEventListener("dragover", (e) => {
-        e.preventDefault();
-      });
-
-      rodDiv.addEventListener("drop", (e) => {
-        if (draggedDisk !== null) {
-          const toRod = parseInt(rodDiv.dataset.rod);
-          const topDisk = rods[toRod][rods[toRod].length - 1];
-          if (!topDisk || topDisk > draggedDisk) {
-            // valid move
-            rods[fromRod].pop();
-            rods[toRod].push(draggedDisk);
-            moveHistory.push({ from: fromRod, to: toRod, disk: draggedDisk });
-            render();
-          }
-        }
-      });
-    });
+  function moveDisk(from, to) {
+    if (from === to) return;
+    const moving = rods[from][rods[from].length - 1];
+    const topTo = rods[to][rods[to].length - 1];
+    if (!moving) return;
+    if (!topTo || topTo > moving) {
+      rods[from].pop();
+      rods[to].push(moving);
+      moveHistory.push({ from, to, disk: moving });
+      render();
+    }
   }
 
-  // Undo last move
+  function handleTapMove(rodIndex) {
+    if (selectedRod === null) {
+      if (rods[rodIndex].length > 0) {
+        selectedRod = rodIndex;
+        highlightRod(hanoiGame.querySelector(`[data-rod="${rodIndex}"]`));
+      }
+    } else {
+      const from = selectedRod;
+      selectedRod = null;
+      unhighlightRod(hanoiGame.querySelector(`[data-rod="${from}"]`));
+      moveDisk(from, rodIndex);
+    }
+  }
+
+  function highlightRod(rodDiv) {
+    if (!rodDiv) return;
+    rodDiv.style.background = "#e8f4f8";
+    rodDiv.style.borderColor = "#00d4ff";
+  }
+  function unhighlightRod(rodDiv) {
+    if (!rodDiv) return;
+    rodDiv.style.background = "#f9f9f9";
+    rodDiv.style.borderColor = "#555";
+  }
+  function clearHighlights() {
+    hanoiGame.querySelectorAll(".rod").forEach(unhighlightRod);
+  }
+  function resetDragState() {
+    isDragging = false;
+    draggedDisk = null;
+    fromRod = null;
+    draggingEl = null;
+  }
+
+  // --- controls ---
   card.querySelector("#undoBtn").onclick = () => {
-    const lastMove = moveHistory.pop();
-    if (lastMove) {
-      rods[lastMove.to].pop();
-      rods[lastMove.from].push(lastMove.disk);
+    const last = moveHistory.pop();
+    if (last) {
+      rods[last.to].pop();
+      rods[last.from].push(last.disk);
       render();
     }
   };
-
-  // Submit check
   card.querySelector("#submit5").onclick = () => {
-    if (rods[2].length === numDisks) {
-      levelSuccess();
-    } else {
-      levelFail();
-    }
+    if (rods[2].length === numDisks) levelSuccess();
+    else levelFail();
   };
 
+  // initial draw
   render();
 }
 
-
-
-
-// ===== Helpers =====
 // ===== Helpers =====
 function levelSuccess() {
   stopTimer();
@@ -494,6 +654,15 @@ function levelSuccess() {
 
   // Emit levelCompleted for all levels
   socket.emit('levelCompleted', completionData);
+
+  // If level 5 completed, emit level5Completed for leaderboard
+  if (currentLevel === 5) {
+    const totalTime = Date.now() - levelStart; // Calculate total time from level start
+    socket.emit('level5Completed', {
+      teamName: teamName,
+      totalTime: totalTime
+    });
+  }
 
   showPopup('✅ Correct! Level completed.', false, () => {
     if (currentLevel < 5) {
