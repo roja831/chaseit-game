@@ -6,7 +6,13 @@ const fs = require("fs");
 const path = require("path");
 const multer = require("multer");
 const cors = require("cors");
-const mysql = require("mysql2/promise");
+const { Sequelize } = require('sequelize');
+const { Pool } = require('pg');
+
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL, // Render provides this
+  ssl: { rejectUnauthorized: false }
+});
 
 const app = express();
 const server = http.createServer(app);
@@ -20,45 +26,86 @@ const PUBLIC = path.join(__dirname, 'public');
 app.use(express.static(PUBLIC));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-// MySQL connection
-const db = mysql.createPool({
-  host: process.env.DB_HOST || 'localhost',
-  user: process.env.DB_USER || 'root',
-  password: process.env.DB_PASSWORD || 'roja',
-  database: process.env.DB_NAME || 'cyber_chase',
-  waitForConnections: true,
-  connectionLimit: 10,
-  queueLimit: 0
+// PostgreSQL connection using Sequelize
+const sequelize = new Sequelize(process.env.DATABASE_URL || 'postgresql://username:password@localhost:5432/cyber_chase', {
+  dialect: 'postgres',
+  logging: false,
+  pool: {
+    max: 5,
+    min: 0,
+    acquire: 30000,
+    idle: 10000
+  }
 });
 
-// Create tables if not exist
+// Define Sequelize models
+const Team = sequelize.define('Team', {
+  id: {
+    type: Sequelize.INTEGER,
+    primaryKey: true,
+    autoIncrement: true
+  },
+  socketId: {
+    type: Sequelize.STRING,
+    allowNull: true
+  },
+  name: {
+    type: Sequelize.STRING,
+    allowNull: false,
+    unique: true
+  },
+  level: {
+    type: Sequelize.INTEGER,
+    defaultValue: 1
+  },
+  completed: {
+    type: Sequelize.JSON,
+    defaultValue: []
+  },
+  joinedAt: {
+    type: Sequelize.BIGINT,
+    allowNull: false
+  }
+});
+
+const Question = sequelize.define('Question', {
+  level: {
+    type: Sequelize.STRING(10),
+    primaryKey: true
+  },
+  data: {
+    type: Sequelize.JSON,
+    allowNull: false
+  }
+});
+
+const Leaderboard = sequelize.define('Leaderboard', {
+  id: {
+    type: Sequelize.INTEGER,
+    primaryKey: true,
+    autoIncrement: true
+  },
+  teamName: {
+    type: Sequelize.STRING,
+    allowNull: false,
+    unique: true
+  },
+  completionTime: {
+    type: Sequelize.STRING,
+    allowNull: false
+  },
+  totalTime: {
+    type: Sequelize.INTEGER,
+    allowNull: false
+  }
+});
+
+// Initialize database
 async function initDB() {
   try {
-    await db.execute(`
-      CREATE TABLE IF NOT EXISTS teams (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        socketId VARCHAR(255) NULL,
-        name VARCHAR(255) UNIQUE NOT NULL,
-        level INT DEFAULT 1,
-        completed JSON,
-        joinedAt BIGINT
-      )
-    `);
-    await db.execute(`
-      CREATE TABLE IF NOT EXISTS questions (
-        level VARCHAR(10) PRIMARY KEY,
-        data JSON
-      )
-    `);
-    await db.execute(`
-      CREATE TABLE IF NOT EXISTS leaderboard (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        teamName VARCHAR(255) UNIQUE NOT NULL,
-        completionTime VARCHAR(255),
-        totalTime INT
-      )
-    `);
-    console.log('Database initialized');
+    await sequelize.authenticate();
+    await sequelize.sync({ force: false }); // Create tables if they don't exist
+    console.log('Database initialized successfully');
   } catch (err) {
     console.error('Error initializing database:', err);
   }
@@ -84,9 +131,9 @@ const upload = multer({ storage });
 let questions = {};
 async function loadQuestions() {
   try {
-    const [rows] = await db.execute('SELECT * FROM questions');
+    const rows = await Question.findAll();
     rows.forEach(row => {
-      questions[row.level] = JSON.parse(row.data);
+      questions[row.level] = row.data;
     });
     console.log('Questions loaded from database');
   } catch (err) {
@@ -98,10 +145,10 @@ async function loadQuestions() {
 async function saveQuestions() {
   try {
     for (const [level, data] of Object.entries(questions)) {
-      await db.execute(
-        'INSERT INTO questions (level, data) VALUES (?, ?) ON DUPLICATE KEY UPDATE data=?',
-        [level, JSON.stringify(data), JSON.stringify(data)]
-      );
+      await Question.upsert({
+        level: level,
+        data: data
+      });
     }
   } catch (err) {
     console.error('Error saving questions:', err);
@@ -217,13 +264,13 @@ let startTimestamp = null;
 // Load teams from database on server start
 async function loadTeams() {
   try {
-    const [rows] = await db.execute('SELECT * FROM teams');
+    const rows = await Team.findAll();
     teams = rows.map(row => ({
       id: row.id,
       socketId: row.socketId,
       name: row.name,
       level: row.level,
-      completed: typeof row.completed === "string" ? JSON.parse(row.completed) : row.completed || [],
+      completed: row.completed || [],
       joinedAt: row.joinedAt
     }));
     console.log('Teams loaded from database');
@@ -235,11 +282,14 @@ async function loadTeams() {
 // Save team to database
 async function saveTeam(team) {
   try {
-    const completedJson = JSON.stringify(team.completed);
-    await db.execute(
-      'INSERT INTO teams (id, socketId, name, level, completed, joinedAt) VALUES (?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE socketId=?, level=?, completed=?',
-      [team.id, team.socketId, team.name, team.level, completedJson, team.joinedAt, team.socketId, team.level, completedJson]
-    );
+    await Team.upsert({
+      id: team.id,
+      socketId: team.socketId,
+      name: team.name,
+      level: team.level,
+      completed: team.completed,
+      joinedAt: team.joinedAt
+    });
   } catch (err) {
     console.error('Error saving team:', err);
   }
@@ -248,7 +298,7 @@ async function saveTeam(team) {
 // Delete team from database
 async function deleteTeamFromDB(id) {
   try {
-    await db.execute('DELETE FROM teams WHERE id = ?', [id]);
+    await Team.destroy({ where: { id: id } });
   } catch (err) {
     console.error('Error deleting team:', err);
   }
@@ -256,11 +306,10 @@ async function deleteTeamFromDB(id) {
 
 loadTeams();
 
-// Load leaderboard from database
 let leaderboard = [];
 async function loadLeaderboard() {
   try {
-    const [rows] = await db.execute('SELECT * FROM leaderboard ORDER BY totalTime ASC');
+    const rows = await Leaderboard.findAll({ order: [['totalTime', 'ASC']] });
     leaderboard = rows.map(row => ({
       teamName: row.teamName,
       completionTime: row.completionTime,
@@ -275,10 +324,11 @@ async function loadLeaderboard() {
 // Save leaderboard entry to database
 async function saveLeaderboardEntry(entry) {
   try {
-    await db.execute(
-      'INSERT INTO leaderboard (teamName, completionTime, totalTime) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE completionTime=?, totalTime=?',
-      [entry.teamName, entry.completionTime, entry.totalTime, entry.completionTime, entry.totalTime]
-    );
+    await Leaderboard.upsert({
+      teamName: entry.teamName,
+      completionTime: entry.completionTime,
+      totalTime: entry.totalTime
+    });
   } catch (err) {
     console.error('Error saving leaderboard entry:', err);
   }
@@ -372,11 +422,11 @@ socket.on('joinTeam', async (teamData)=>{
     if (socket.id !== adminSocketId) return;
     try {
       // Clear leaderboard
-      await db.execute('DELETE FROM leaderboard');
+      await Leaderboard.destroy({ where: {} });
       leaderboard = [];
 
       // Clear teams
-      await db.execute('DELETE FROM teams');
+      await Team.destroy({ where: {} });
       teams = [];
 
       io.emit('updateLeaderboard', leaderboard);

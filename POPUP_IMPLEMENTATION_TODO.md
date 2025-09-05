@@ -1,3 +1,4 @@
+
 # TODO: Implement JavaScript Popups
 
 - [x] Add custom modal CSS and HTML structure to admin.html
