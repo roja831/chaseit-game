@@ -473,22 +473,30 @@ io.on("connection", socket => {
     // Prevent duplicate entries for the same team
     const existing = leaderboard.find(t => t.teamName === data.teamName);
     if (!existing) {
+      const now = new Date(); // current local time
       const entry = {
         teamName: data.teamName,
-        completionTime: new Date().toLocaleTimeString(),
-        totalTime: data.totalTime
+        completionTime: now,    // store as Date object
+        totalTime: data.totalTime // optional, still keep it
       };
       leaderboard.push(entry);
       await saveLeaderboardEntry(entry);
     }
 
-    // Sort leaderboard by totalTime (ascending)
-    leaderboard.sort((a, b) => a.totalTime - b.totalTime);
+    // Sort leaderboard by local completion time ascending
+    leaderboard.sort((a, b) => a.completionTime - b.completionTime);
 
-    // Send update to all clients
-    io.emit("updateLeaderboard", leaderboard);
+    // Send formatted leaderboard to clients
+    const formattedLeaderboard = leaderboard.map(e => ({
+      teamName: e.teamName,
+      completionTime: e.completionTime.toLocaleTimeString(), // display HH:MM:SS
+      totalTime: e.totalTime
+    }));
+
+    io.emit("updateLeaderboard", formattedLeaderboard);
   });
 });
+
 
 // ---- Start server ----
 const PORT = process.env.PORT || 3000;
