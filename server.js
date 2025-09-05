@@ -470,32 +470,39 @@ function sendTeamsToAdmin(){
 
 io.on("connection", socket => {
   socket.on("level5Completed", async data => {
-    // Prevent duplicate entries for the same team
     const existing = leaderboard.find(t => t.teamName === data.teamName);
     if (!existing) {
-      const now = new Date(); // current local time
+      const now = new Date(); // timestamp of completion
       const entry = {
         teamName: data.teamName,
-        completionTime: now,    // store as Date object
-        totalTime: data.totalTime // optional, still keep it
+        completionTime: now,
+        totalTime: Math.floor(data.totalTime / 1000) // convert ms → seconds
       };
       leaderboard.push(entry);
       await saveLeaderboardEntry(entry);
     }
 
-    // Sort leaderboard by local completion time ascending
+    // Sort by completion time
     leaderboard.sort((a, b) => a.completionTime - b.completionTime);
 
-    // Send formatted leaderboard to clients
+    // Format for client display
     const formattedLeaderboard = leaderboard.map(e => ({
       teamName: e.teamName,
-      completionTime: e.completionTime.toLocaleTimeString(), // display HH:MM:SS
-      totalTime: e.totalTime
+      completionTime: e.completionTime.toLocaleTimeString(), // HH:MM:SS
+      totalTime: formatDuration(e.totalTime)                 // mm:ss
     }));
 
     io.emit("updateLeaderboard", formattedLeaderboard);
   });
 });
+
+// helper to format seconds as mm:ss
+function formatDuration(seconds) {
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  return `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+}
+
 
 
 // ---- Start server ----
